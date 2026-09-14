@@ -1,0 +1,8 @@
+**
+!src/
+!src/RvglLiveScore/
+!src/RvglLiveScore/**
+!Dockerfile
+**/bin/
+**/obj/
+**/appsettings.Local.json

@@ -1,16 +1,16 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Environments
+# Local settings
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+appsettings.Local.json
+
+# .NET and IDE files
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+**/TestResults/
+artifacts/
 
 # SQLite Databases
 *.sqlite3

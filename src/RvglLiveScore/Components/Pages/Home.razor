@@ -1,0 +1,80 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject LobbyDirectory Directory
+
+<PageTitle>Active lobbies — RVGL</PageTitle>
+<h1>Active lobbies</h1>
+
+@if (_snapshot.IsLoading)
+{
+    <p class="state-message" role="status">Loading lobbies…</p>
+}
+else if (_snapshot.Error is not null)
+{
+    <p class="state-message" role="status">@_snapshot.Error</p>
+}
+else if (_snapshot.Lobbies.Count == 0)
+{
+    <p class="state-message" role="status">No active lobbies right now.</p>
+}
+else
+{
+    <ul class="lobby-list" aria-label="Active lobbies">
+        @foreach (var lobby in _snapshot.Lobbies)
+        {
+            <li class="lobby-row">
+                <span class="lobby-name">@lobby.Name</span>
+                <span class="player-count">@lobby.PlayerCount @(lobby.PlayerCount == 1 ? "player" : "players")</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private LobbySnapshot _snapshot = new([], true, null, null);
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _refreshTask;
+
+    protected override void OnInitialized() => _snapshot = Directory.Snapshot;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _refreshTask = RefreshAsync();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_stop.Token))
+            {
+                if (!ReferenceEquals(_snapshot, Directory.Snapshot))
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _snapshot = Directory.Snapshot;
+                        StateHasChanged();
+                    });
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stop.CancelAsync();
+        if (_refreshTask is not null)
+        {
+            await _refreshTask;
+        }
+        _stop.Dispose();
+    }
+}

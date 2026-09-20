@@ -24,6 +24,12 @@ builder.Services.AddHttpClient("Coordinator", client =>
     client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 });
 builder.Services.AddSingleton<LobbyDirectory>();
+builder.Services.AddHttpClient("CoordinatorStream", client =>
+{
+    client.Timeout = Timeout.InfiniteTimeSpan;
+    client.DefaultRequestHeaders.Accept.ParseAdd("text/event-stream");
+});
+builder.Services.AddTransient<CoordinatorSessionClient>();
 builder.Services.AddHostedService<CoordinatorWorker>();
 
 var app = builder.Build();

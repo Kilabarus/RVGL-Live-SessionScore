@@ -23,9 +23,11 @@ else
     <ul class="lobby-list" aria-label="Active lobbies">
         @foreach (var lobby in _snapshot.Lobbies)
         {
-            <li class="lobby-row">
-                <span class="lobby-name">@lobby.Name</span>
-                <span class="player-count">@lobby.PlayerCount @(lobby.PlayerCount == 1 ? "player" : "players")</span>
+            <li>
+                <a class="lobby-row" href="@($"/lobbies/{Uri.EscapeDataString(lobby.Id)}")">
+                    <span class="lobby-name">@lobby.Name</span>
+                    <span class="player-count">@lobby.PlayerCount @(lobby.PlayerCount == 1 ? "player" : "players")</span>
+                </a>
             </li>
         }
     </ul>

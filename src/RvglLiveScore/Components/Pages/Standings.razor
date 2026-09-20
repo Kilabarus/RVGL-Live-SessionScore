@@ -1,0 +1,278 @@
+@page "/lobbies/{LobbyId}"
+@layout StandingsLayout
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject CoordinatorSessionClient Coordinator
+@inject LobbyDirectory Directory
+
+<PageTitle>@LobbyName — RVGL</PageTitle>
+<a class="back-link" href="/">
+    <svg class="back-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M16 10H4m0 0 5-5m-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Active lobbies</span>
+</a>
+
+<div class="standings-grid @(_mode == SessionMode.TmFinalist ? "tm-layout" : "")">
+    <div class="standings-heading">
+        <div class="standings-title-row">
+            <h1 class="standings-title">@LobbyName</h1>
+            @if (_mode == SessionMode.TmFinalist && _update.Results?.CurrentTrack is { } currentTrack)
+            {
+                <p class="current-track">Current track — @currentTrack</p>
+            }
+        </div>
+        @if (_mode == SessionMode.Classic
+            && _update.Connection == SessionConnection.Live
+            && (_update.Results?.NextTrack is not null || _update.Results?.RemainingRaces is > 0))
+        {
+            <div class="queue-summary">
+                @if (_update.Results?.NextTrack is { } nextTrack)
+                {
+                    <p class="next-track">Next track — @nextTrack</p>
+                }
+                @if (_update.Results?.RemainingRaces is int remainingRaces && remainingRaces > 0)
+                {
+                    <p class="remaining-races">Remaining races — @remainingRaces</p>
+                }
+            </div>
+        }
+    </div>
+    <section class="results" aria-label="Session standings">
+        @if (StatusMessage is { } message)
+        {
+            <p class="connection-message" role="status">@message</p>
+        }
+        <div class="table-scroll" role="region" aria-label="Standings table" tabindex="0">
+            <table class="standings-table @(_mode == SessionMode.TmFinalist ? "tm-table" : "")">
+                @if (_mode == SessionMode.TmFinalist)
+                {
+                <colgroup>
+                    <col class="tm-position-column" />
+                    <col class="tm-player-column" />
+                    <col class="tm-points-column" />
+                    <col class="tm-last-round-column" />
+                    @if (_tmOptions.BestLapBonusEnabled)
+                    {
+                        <col class="tm-best-lap-column" />
+                    }
+                    @if (_tmOptions.PodiumBonusEnabled)
+                    {
+                        <col class="tm-podium-column" />
+                    }
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th scope="col" class="position">Pos</th>
+                        <th scope="col" class="player">Player</th>
+                        <th scope="col">Points</th>
+                        <th scope="col">Last round<br />points</th>
+                        @if (_tmOptions.BestLapBonusEnabled)
+                        {
+                            <th scope="col">Best lap<br />on current track</th>
+                        }
+                        @if (_tmOptions.PodiumBonusEnabled)
+                        {
+                            <th scope="col">Podium bonus<br />on current track</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _tmStandings)
+                    {
+                        <tr @key="row.Player">
+                            <td class="position">@row.Position</td>
+                            <th scope="row" class="player">@row.Player</th>
+                            <td class="points @(row.Status == TmFinalistStatus.Winner ? "status-winner" : row.Status == TmFinalistStatus.Finalist ? "status-finalist" : "")">
+                                @(row.Status == TmFinalistStatus.Winner ? "WINNER" : row.Status == TmFinalistStatus.Finalist ? "FINALIST" : ScoringSystem.Format(row.Points))
+                            </td>
+                            <td class="last-round-cell">@FormatLastRound(row.LastRoundParts)</td>
+                            @if (_tmOptions.BestLapBonusEnabled)
+                            {
+                                <td class="best-lap-cell @(row.BestLapMilliseconds is > 0 && row.BestLapMilliseconds == FastestLap ? "fastest-lap" : "")">
+                                    @(row.BestLapMilliseconds is int lap ? TmFinalistCalculator.FormatLap(lap) : "—")
+                                </td>
+                            }
+                            @if (_tmOptions.PodiumBonusEnabled)
+                            {
+                                <td class="podium-cell">@(row.PodiumEligible ? "✓" : "")</td>
+                            }
+                        </tr>
+                    }
+                    @if (_tmStandings.Count == 0)
+                    {
+                        <tr><td colspan="@TmColumnCount" class="empty-standings">@EmptyMessage</td></tr>
+                    }
+                </tbody>
+                }
+                else
+                {
+                <colgroup>
+                    <col class="position-column" />
+                    <col class="player-column" />
+                    <col class="points-column" />
+                    <col class="wins-column" />
+                    <col class="difference-column" />
+                    <col class="difference-column" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th scope="col" class="position">Pos</th>
+                        <th scope="col" class="player">Player</th>
+                        <th scope="col" class="points">Points</th>
+                        <th scope="col">Wins</th>
+                        <th scope="col" title="Points behind the player above">Diff</th>
+                        <th scope="col" title="Points behind the leader">Diff Leader</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _standings)
+                    {
+                        <tr @key="row.Player">
+                            <td class="position">@row.Position</td>
+                            <th scope="row" class="player">@row.Player</th>
+                            <td class="points">@ScoringSystem.Format(row.Points)</td>
+                            <td>@row.Wins</td>
+                            <td class="difference">@Difference(row.Diff)</td>
+                            <td class="difference">@Difference(row.DiffLeader)</td>
+                        </tr>
+                    }
+                    @if (_standings.Count == 0)
+                    {
+                        <tr><td colspan="6" class="empty-standings">@EmptyMessage</td></tr>
+                    }
+                </tbody>
+                }
+            </table>
+        </div>
+    </section>
+    <div class="settings-column">
+        <SessionModePanel @key="ModePanelKey" Changed="SetMode" />
+        <ScoringPanel @key="ScoringPanelKey" LobbyId="@LobbyId" Applied="SetScoring"
+                      StartCollapsed="@(_mode == SessionMode.TmFinalist)" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string LobbyId { get; set; } = "";
+    private SessionUpdate _update = new(null, SessionConnection.Loading);
+    private ScoringSystem _scoring = ScoringSystem.IO;
+    private IReadOnlyList<Standing> _standings = [];
+    private SessionMode _mode = SessionMode.Classic;
+    private TmFinalistOptions _tmOptions = new();
+    private IReadOnlyList<TmStanding> _tmStandings = [];
+    private CancellationTokenSource? _subscription;
+    private Task? _watch;
+    private string? _watchedId;
+    private bool _interactive;
+    private bool _disposed;
+
+    private string LobbyName => _update.Results?.Name
+        ?? Directory.Snapshot.Lobbies.FirstOrDefault(x => x.Id == LobbyId)?.Name ?? "Lobby";
+    private string ModePanelKey => "mode:" + LobbyId;
+    private string ScoringPanelKey => "scoring:" + LobbyId;
+    private int? FastestLap => _tmStandings.Min(row => row.BestLapMilliseconds);
+    private int TmColumnCount => 4 + (_tmOptions.BestLapBonusEnabled ? 1 : 0) + (_tmOptions.PodiumBonusEnabled ? 1 : 0);
+    private string? StatusMessage => _update.Connection switch
+    {
+        SessionConnection.Reconnecting => _update.Results is null
+            ? "Unable to load results. Retrying automatically…"
+            : "Connection lost. Showing the last received results. Reconnecting…",
+        SessionConnection.Ended => "Session ended.",
+        SessionConnection.Unavailable => "This lobby is no longer available or is private.",
+        _ => null
+    };
+    private string EmptyMessage => _update.Connection switch
+    {
+        SessionConnection.Loading => "Loading standings…",
+        SessionConnection.Unavailable or SessionConnection.Ended => "No results available.",
+        SessionConnection.Reconnecting when _update.Results is null => "Waiting for results…",
+        _ => "Waiting for the first finish…"
+    };
+
+    private static string Difference(decimal? value) => value is null ? "—"
+        : value == 0 ? "0" : "−" + ScoringSystem.Format(value.Value);
+    private static string FormatLastRound(IReadOnlyList<decimal> parts) => parts.Count == 0
+        ? "0" : string.Join(" + ", parts.Select(ScoringSystem.Format));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_watchedId == LobbyId) return;
+        await StopWatchingAsync();
+        _update = new(null, SessionConnection.Loading);
+        _scoring = ScoringSystem.IO;
+        _standings = [];
+        _mode = SessionMode.Classic;
+        _tmOptions = new();
+        _tmStandings = [];
+        _watchedId = LobbyId;
+        if (_interactive) StartWatching();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        _interactive = true;
+        StartWatching();
+    }
+
+    private void StartWatching()
+    {
+        _subscription = new();
+        var token = _subscription.Token;
+        _watch = Coordinator.WatchAsync(LobbyId, update => InvokeAsync(() =>
+        {
+            if (_disposed || token.IsCancellationRequested) return;
+            _update = update;
+            Recalculate();
+            StateHasChanged();
+        }), token);
+    }
+
+    private void SetScoring(ScoringSystem scoring)
+    {
+        _scoring = scoring;
+        Recalculate();
+    }
+
+    private void SetMode(SessionModeSelection selection)
+    {
+        _mode = selection.Mode;
+        _tmOptions = selection.Options;
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        if (_update.Results is not { } results)
+        {
+            _standings = [];
+            _tmStandings = [];
+        }
+        else if (_mode == SessionMode.Classic)
+        {
+            _standings = StandingsCalculator.Calculate(results, _scoring);
+            _tmStandings = [];
+        }
+        else
+        {
+            _tmStandings = TmFinalistCalculator.Calculate(results, _scoring, _tmOptions);
+            _standings = [];
+        }
+    }
+
+    private async Task StopWatchingAsync()
+    {
+        if (_subscription is null) return;
+        await _subscription.CancelAsync();
+        if (_watch is not null) await _watch;
+        _subscription.Dispose();
+        _subscription = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await StopWatchingAsync();
+    }
+}

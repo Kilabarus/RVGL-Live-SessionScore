@@ -1,0 +1,101 @@
+<aside class="mode-panel" aria-label="Session mode settings">
+    <div class="mode-header">
+        <h2 class="panel-heading">
+            <button type="button" class="panel-toggle" aria-expanded="@_expanded.ToString().ToLowerInvariant()"
+                    aria-controls="mode-content" @onclick="() => _expanded = !_expanded">
+                <svg class="chevron @(_expanded ? "" : "is-collapsed")" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+                    <path d="m5 7 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Session Mode</span>
+            </button>
+        </h2>
+        @if (!_expanded)
+        {
+            <span class="scoring-selected">@(_mode == SessionMode.Classic ? "Default Mode" : "TM Finalist Mode")</span>
+        }
+    </div>
+    <div id="mode-content" class="mode-content" hidden="@(!_expanded)">
+        <div class="mode-select-row">
+            <label class="sr-only" for="session-mode">Session mode</label>
+            <select id="session-mode" value="@_mode" @onchange="ChangeMode">
+                <option value="Classic">Default Mode</option>
+                <option value="TmFinalist">TM Finalist Mode</option>
+            </select>
+        </div>
+        @if (_mode == SessionMode.TmFinalist)
+        {
+          <div class="mode-options">
+            <label class="mode-number-row">
+                <span>Finalist points</span>
+                <input type="text" inputmode="numeric" autocomplete="off" maxlength="6"
+                       value="@_options.FinalistPoints" @onchange="ChangeFinalistPoints" />
+            </label>
+            <label class="mode-number-row">
+                <span>Rounds per track</span>
+                <input type="text" inputmode="numeric" autocomplete="off" maxlength="3"
+                       value="@_options.RoundsPerTrack" @onchange="ChangeRounds" />
+            </label>
+            <label class="mode-checkbox-row">
+                <input type="checkbox" checked="@_options.WarmupRound" @onchange="ChangeWarmup" />
+                <span>Warmup round</span>
+            </label>
+            <h3 class="mode-bonus-heading">Bonus Points per Track</h3>
+            <div class="mode-bonus-row">
+                <label class="mode-checkbox-row">
+                    <input type="checkbox" checked="@_options.BestLapBonusEnabled" @onchange="ChangeBestLapEnabled" />
+                    <span>Best lap</span>
+                </label>
+                <input type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="@_options.BestLapBonusPoints"
+                       aria-label="Best lap bonus points" @onchange="ChangeBestLapPoints" />
+            </div>
+            <div class="mode-bonus-row">
+                <label class="mode-checkbox-row">
+                    <input type="checkbox" checked="@_options.PodiumBonusEnabled" @onchange="ChangePodiumEnabled" />
+                    <span>Podium in all rounds</span>
+                </label>
+                <input type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="@_options.PodiumBonusPoints"
+                       aria-label="Podium bonus points" @onchange="ChangePodiumPoints" />
+            </div>
+          </div>
+        }
+        <div class="apply-row">
+            <button type="button" class="apply-button" @onclick="Apply">Apply</button>
+        </div>
+    </div>
+</aside>
+
+@code {
+    [Parameter] public EventCallback<SessionModeSelection> Changed { get; set; }
+    private SessionMode _mode = SessionMode.Classic;
+    private TmFinalistOptions _options = new();
+    private bool _expanded = true;
+
+    private void ChangeMode(ChangeEventArgs args) =>
+        _mode = args.Value?.ToString() == "TmFinalist" ? SessionMode.TmFinalist : SessionMode.Classic;
+
+    private void ChangeFinalistPoints(ChangeEventArgs args) =>
+        _options = _options with { FinalistPoints = Number(args, _options.FinalistPoints, 1, 100000) };
+
+    private void ChangeRounds(ChangeEventArgs args) =>
+        _options = _options with { RoundsPerTrack = Number(args, _options.RoundsPerTrack, 1, 100) };
+
+    private void ChangeWarmup(ChangeEventArgs args) =>
+        _options = _options with { WarmupRound = args.Value is true };
+
+    private void ChangeBestLapEnabled(ChangeEventArgs args) =>
+        _options = _options with { BestLapBonusEnabled = args.Value is true };
+
+    private void ChangeBestLapPoints(ChangeEventArgs args) =>
+        _options = _options with { BestLapBonusPoints = Number(args, _options.BestLapBonusPoints, 0, 100000) };
+
+    private void ChangePodiumEnabled(ChangeEventArgs args) =>
+        _options = _options with { PodiumBonusEnabled = args.Value is true };
+
+    private void ChangePodiumPoints(ChangeEventArgs args) =>
+        _options = _options with { PodiumBonusPoints = Number(args, _options.PodiumBonusPoints, 0, 100000) };
+
+    private static int Number(ChangeEventArgs args, int previous, int min, int max) =>
+        int.TryParse(args.Value?.ToString(), out var value) ? Math.Clamp(value, min, max) : previous;
+
+    private Task Apply() => Changed.InvokeAsync(new SessionModeSelection(_mode, _options));
+}

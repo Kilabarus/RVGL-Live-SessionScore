@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject CoordinatorSessionClient Coordinator
+@inject CoordinatorSessionMetadataClient Metadata
 @inject LobbyDirectory Directory
 
 <PageTitle>@LobbyName — RVGL</PageTitle>
@@ -147,9 +148,21 @@
         </div>
     </section>
     <div class="settings-column">
-        <SessionModePanel @key="ModePanelKey" Changed="SetMode" />
-        <ScoringPanel @key="ScoringPanelKey" LobbyId="@LobbyId" Applied="SetScoring"
-                      StartCollapsed="@(_mode == SessionMode.TmFinalist)" />
+        @if (_settingsReady)
+        {
+            @if (SettingsBanner is { } banner && !_bannerDismissed)
+            {
+                <div class="settings-banner" role="status">
+                    <span>@banner</span>
+                    <button type="button" aria-label="Dismiss settings message" @onclick="DismissBanner">×</button>
+                </div>
+            }
+            <SessionModePanel @key="ModePanelKey" Changed="SetMode" Value="CurrentModeSelection"
+                              Locked="@_settingsLocked" ExternalRevision="@_settingsRevision" />
+            <ScoringPanel @key="ScoringPanelKey" LobbyId="@LobbyId" Applied="SetScoring" Loaded="SetStoredScoring" Value="@_scoring"
+                          Locked="@_settingsLocked" LoadStoredSettings="@_loadStoredScoring"
+                          ExternalRevision="@_settingsRevision" StartCollapsed="@(_mode == SessionMode.TmFinalist)" />
+        }
     </div>
 </div>
 
@@ -163,14 +176,28 @@
     private IReadOnlyList<TmStanding> _tmStandings = [];
     private CancellationTokenSource? _subscription;
     private Task? _watch;
+    private Task? _metadataWatch;
     private string? _watchedId;
     private bool _interactive;
     private bool _disposed;
+    private bool _settingsReady;
+    private bool _settingsLocked;
+    private bool _viewerCustomized;
+    private bool _loadStoredScoring;
+    private bool _bannerDismissed;
+    private string? _description;
+    private string? _settingsWarning;
+    private string? _bannerIdentity;
+    private int _settingsRevision;
 
     private string LobbyName => _update.Results?.Name
         ?? Directory.Snapshot.Lobbies.FirstOrDefault(x => x.Id == LobbyId)?.Name ?? "Lobby";
     private string ModePanelKey => "mode:" + LobbyId;
     private string ScoringPanelKey => "scoring:" + LobbyId;
+    private SessionModeSelection CurrentModeSelection => new(_mode, _tmOptions);
+    private string? SettingsBanner => _settingsWarning is not null
+        ? "Lobby settings could not be loaded: " + _settingsWarning
+        : _settingsLocked ? "These settings are locked by the lobby host." : null;
     private int? FastestLap => _tmStandings.Min(row => row.BestLapMilliseconds);
     private int TmColumnCount => 4 + (_tmOptions.BestLapBonusEnabled ? 1 : 0) + (_tmOptions.PodiumBonusEnabled ? 1 : 0);
     private string? StatusMessage => _update.Connection switch
@@ -205,6 +232,15 @@
         _mode = SessionMode.Classic;
         _tmOptions = new();
         _tmStandings = [];
+        _settingsReady = false;
+        _settingsLocked = false;
+        _viewerCustomized = false;
+        _loadStoredScoring = false;
+        _bannerDismissed = false;
+        _description = null;
+        _settingsWarning = null;
+        _bannerIdentity = null;
+        _settingsRevision = 0;
         _watchedId = LobbyId;
         if (_interactive) StartWatching();
     }
@@ -224,6 +260,15 @@
         {
             if (_disposed || token.IsCancellationRequested) return;
             _update = update;
+            if (update.Results is { } results && (!_settingsReady || results.Description is not null))
+                ApplyDescription(results.Description);
+            Recalculate();
+            StateHasChanged();
+        }), token);
+        _metadataWatch = Metadata.WatchAsync(LobbyId, description => InvokeAsync(() =>
+        {
+            if (_disposed || token.IsCancellationRequested) return;
+            ApplyDescription(description);
             Recalculate();
             StateHasChanged();
         }), token);
@@ -231,12 +276,23 @@
 
     private void SetScoring(ScoringSystem scoring)
     {
+        if (_settingsLocked) return;
+        _viewerCustomized = true;
+        _scoring = scoring;
+        Recalculate();
+    }
+
+    private void SetStoredScoring(ScoringSystem scoring)
+    {
+        if (_settingsLocked) return;
         _scoring = scoring;
         Recalculate();
     }
 
     private void SetMode(SessionModeSelection selection)
     {
+        if (_settingsLocked) return;
+        _viewerCustomized = true;
         _mode = selection.Mode;
         _tmOptions = selection.Options;
         Recalculate();
@@ -261,13 +317,52 @@
         }
     }
 
+    private void ApplyDescription(string? description)
+    {
+        if (_settingsReady && string.Equals(_description, description, StringComparison.Ordinal)) return;
+        _description = description;
+        _settingsRevision++;
+        var parsed = LobbySettingsParser.Parse(description);
+        _settingsReady = true;
+        _loadStoredScoring = !parsed.HasMarker;
+        _settingsWarning = parsed.Error;
+        _settingsLocked = parsed.Settings?.IsLocked == true;
+
+        var bannerIdentity = _settingsWarning is not null
+            ? "error:" + description
+            : _settingsLocked ? "locked" : null;
+        if (!string.Equals(_bannerIdentity, bannerIdentity, StringComparison.Ordinal))
+        {
+            _bannerIdentity = bannerIdentity;
+            _bannerDismissed = false;
+        }
+
+        if (parsed.Settings is { } settings && (!_viewerCustomized || settings.IsLocked))
+        {
+            _scoring = settings.Scoring;
+            _mode = settings.Session.Mode;
+            _tmOptions = settings.Session.Options;
+            if (settings.IsLocked) _viewerCustomized = false;
+        }
+        else if (parsed.Settings is null && !_viewerCustomized)
+        {
+            _scoring = ScoringSystem.IO;
+            _mode = SessionMode.Classic;
+            _tmOptions = new();
+        }
+    }
+
+    private void DismissBanner() => _bannerDismissed = true;
+
     private async Task StopWatchingAsync()
     {
         if (_subscription is null) return;
         await _subscription.CancelAsync();
         if (_watch is not null) await _watch;
+        if (_metadataWatch is not null) await _metadataWatch;
         _subscription.Dispose();
         _subscription = null;
+        _metadataWatch = null;
     }
 
     public async ValueTask DisposeAsync()

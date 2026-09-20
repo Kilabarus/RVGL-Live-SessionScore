@@ -76,6 +76,9 @@ table { border-collapse: collapse; }
 .tm-table .status-finalist { color: #ff8d91; }
 .tm-table .podium-cell { text-align: center; font-size: inherit; line-height: inherit; font-weight: 600; }
 .settings-column { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.settings-banner { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 13px 14px; color: #f2dda0; background: #2b2719; border: 1px solid #6d5d2e; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+.settings-banner button { flex: 0 0 auto; padding: 0 2px; border: 0; color: inherit; background: transparent; font-size: 22px; line-height: 1; cursor: pointer; }
+.settings-banner button:hover { color: #fff; }
 .mode-panel, .scoring-panel { border: 1px solid #343b45; border-radius: 12px; background: #1d2229; overflow: hidden; }
 .mode-header, .scoring-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
 .mode-content { padding: 0 16px 20px; }
@@ -109,6 +112,8 @@ table { border-collapse: collapse; }
 .file-actions button:focus-visible { outline-offset: -3px; }
 .import-button:focus-within { outline: 2px solid #9bc5fa; outline-offset: -3px; }
 .import-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.import-button.is-disabled { cursor: not-allowed; opacity: .55; }
+.import-button.is-disabled input { cursor: not-allowed; }
 .scoring-table { width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
 .scoring-table th { font-weight: 400; text-align: left; }
 .scoring-table thead th { color: #bcc4ce; padding: 10px 8px; border-bottom: 1px solid #343b45; }

@@ -22,7 +22,7 @@
     <div id="scoring-content" class="scoring-content" hidden="@(!_expanded)">
       <div class="scoring-preset-row">
         <label class="sr-only" for="scoring-preset">Scoring preset</label>
-        <select id="scoring-preset" value="@_preset" @onchange="ChangePreset" disabled="@(!_ready || _busy)">
+        <select id="scoring-preset" value="@_preset" @onchange="ChangePreset" disabled="@(!_ready || _busy || Locked)">
             <option value="io">IO</option>
             <option value="custom">Custom</option>
         </select>
@@ -34,9 +34,9 @@
       else
       {
         <div class="file-actions" role="group" aria-label="Scoring file">
-            <label class="import-button" title="Import a scoring JSON file">
+            <label class="import-button @(Locked ? "is-disabled" : "")" title="Import a scoring JSON file">
                 <span aria-hidden="true">↓</span> Import
-                <InputFile OnChange="Import" accept=".json,application/json" aria-label="Import scoring file" disabled="@(!_ready || _busy)" />
+                <InputFile OnChange="Import" accept=".json,application/json" aria-label="Import scoring file" disabled="@(!_ready || _busy || Locked)" />
             </label>
             <button type="button" @onclick="Export" disabled="@(!_ready || _busy)"><span aria-hidden="true">↑</span> Export</button>
         </div>
@@ -50,7 +50,7 @@
                         <th scope="row">@(index + 1)</th>
                         <td><input type="text" inputmode="decimal" autocomplete="off" spellcheck="false"
                                    aria-label="@($"Points for place {index + 1}")" value="@_fields[index]"
-                                   maxlength="16" disabled="@(!_ready || _busy)" @oninput="e => Edit(index, e.Value?.ToString() ?? string.Empty)" /></td>
+                                   maxlength="16" disabled="@(!_ready || _busy || Locked)" @oninput="e => Edit(index, e.Value?.ToString() ?? string.Empty)" /></td>
                     </tr>
                 }
             </tbody>
@@ -64,14 +64,19 @@
         {
             <p class="panel-notice" role="status">@_notice</p>
         }
-        <div class="apply-row"><button type="button" class="apply-button" @onclick="Apply" disabled="@(!_ready || _busy)">Apply</button></div>
+        <div class="apply-row"><button type="button" class="apply-button" @onclick="Apply" disabled="@(!_ready || _busy || Locked)">Apply</button></div>
     </div>
 </aside>
 
 @code {
     [Parameter, EditorRequired] public string LobbyId { get; set; } = "";
     [Parameter] public EventCallback<ScoringSystem> Applied { get; set; }
+    [Parameter] public EventCallback<ScoringSystem> Loaded { get; set; }
     [Parameter] public bool StartCollapsed { get; set; }
+    [Parameter] public ScoringSystem Value { get; set; } = ScoringSystem.IO;
+    [Parameter] public bool Locked { get; set; }
+    [Parameter] public bool LoadStoredSettings { get; set; } = true;
+    [Parameter] public int ExternalRevision { get; set; }
     private string[] _fields = ScoringSystem.CustomDefault.Points.Select(ScoringSystem.Format).ToArray();
     private string _preset = "io";
     private bool _expanded = true;
@@ -82,12 +87,23 @@
     private string? _notice;
     private IJSObjectReference? _module;
     private bool? _lastStartCollapsed;
+    private string? _lastExternalScoring;
+    private int _lastExternalRevision = -1;
 
     protected override void OnParametersSet()
     {
-        if (_lastStartCollapsed == StartCollapsed) return;
-        _expanded = !StartCollapsed;
-        _lastStartCollapsed = StartCollapsed;
+        if (_lastStartCollapsed != StartCollapsed)
+        {
+            _expanded = !StartCollapsed;
+            _lastStartCollapsed = StartCollapsed;
+        }
+        var scoringKey = Value.ToJson();
+        if (_lastExternalScoring != scoringKey || _lastExternalRevision != ExternalRevision)
+        {
+            SetFields(Value);
+            _lastExternalScoring = scoringKey;
+            _lastExternalRevision = ExternalRevision;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -96,13 +112,14 @@
         try
         {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./scoring.js");
-            var json = await _module.InvokeAsync<string?>("loadScoring", LobbyId);
+            var json = LoadStoredSettings && !Locked
+                ? await _module.InvokeAsync<string?>("loadScoring", LobbyId) : null;
             if (_disposed) return;
             if (json is not null)
             {
                 var scoring = ScoringSystem.FromJson(json);
                 SetFields(scoring);
-                await Applied.InvokeAsync(scoring);
+                await Loaded.InvokeAsync(scoring);
             }
         }
         catch (FormatException) { _notice = "Saved settings could not be read. Using IO scoring."; }
@@ -125,6 +142,7 @@
 
     private void ChangePreset(ChangeEventArgs args)
     {
+        if (Locked) return;
         _preset = args.Value?.ToString() ?? "custom";
         _error = null;
         _notice = null;
@@ -132,6 +150,7 @@
 
     private void Edit(int index, string value)
     {
+        if (Locked) return;
         _fields[index] = value;
         _preset = "custom";
         _error = null;
@@ -140,6 +159,7 @@
 
     private async Task Apply()
     {
+        if (Locked) return;
         _error = null;
         try
         {
@@ -155,6 +175,7 @@
 
     private async Task Import(InputFileChangeEventArgs args)
     {
+        if (Locked) return;
         _busy = true;
         _error = null;
         _notice = null;

@@ -30,6 +30,7 @@ builder.Services.AddHttpClient("CoordinatorStream", client =>
     client.DefaultRequestHeaders.Accept.ParseAdd("text/event-stream");
 });
 builder.Services.AddTransient<CoordinatorSessionClient>();
+builder.Services.AddSingleton<CoordinatorSessionMetadataClient>();
 builder.Services.AddHostedService<CoordinatorWorker>();
 
 var app = builder.Build();

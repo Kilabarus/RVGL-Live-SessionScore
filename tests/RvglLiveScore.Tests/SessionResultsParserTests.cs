@@ -41,6 +41,16 @@ public class SessionResultsParserTests
     }
 
     [Fact]
+    public void DescriptionIsReadAndPreservedAcrossPartialUpdates()
+    {
+        var first = SessionResultsParser.Parse("{\"Description\":\"Lobby settings\"}");
+        Assert.Equal("Lobby settings", first.Description);
+        Assert.Equal("Lobby settings", SessionResultsParser.Parse("{\"Name\":\"Updated\"}", first).Description);
+        Assert.Null(SessionResultsParser.Parse("{\"Description\":null}", first).Description);
+        Assert.Null(SessionResultsParser.Parse("{\"Description\":\"   \"}", first).Description);
+    }
+
+    [Fact]
     public void QueueCountFollowsLiveSnapshotsAndClearsWhenUnavailable()
     {
         var queued = SessionResultsParser.Parse("""

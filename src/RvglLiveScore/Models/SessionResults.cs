@@ -8,7 +8,8 @@ public sealed record SessionResults(
     IReadOnlyList<string> Players,
     IReadOnlyList<RaceResult> Races,
     int? RemainingRaces = null,
-    string? NextTrack = null);
+    string? NextTrack = null,
+    string? Description = null);
 
 public enum SessionConnection { Loading, Live, Reconnecting, Ended, Unavailable }
 public sealed record SessionUpdate(SessionResults? Results, SessionConnection Connection);

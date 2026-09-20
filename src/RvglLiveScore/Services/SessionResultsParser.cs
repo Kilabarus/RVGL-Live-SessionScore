@@ -62,7 +62,10 @@ public static class SessionResultsParser
         var nextTrack = remainingRaces > 0
             ? Text(Get(queue[0], "TrackName", "track_name", "Track")) ?? Text(queue[0])
             : null;
-        return new SessionResults(name, track, players, races, remainingRaces, nextTrack);
+        var descriptionValue = Get(root, "Description");
+        var description = descriptionValue.ValueKind == JsonValueKind.Undefined
+            ? previous?.Description : Text(descriptionValue);
+        return new SessionResults(name, track, players, races, remainingRaces, nextTrack, description);
     }
 
     private static IEnumerable<JsonElement> Array(JsonElement value) => value.ValueKind switch

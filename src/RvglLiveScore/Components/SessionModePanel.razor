@@ -17,7 +17,7 @@
     <div id="mode-content" class="mode-content" hidden="@(!_expanded)">
         <div class="mode-select-row">
             <label class="sr-only" for="session-mode">Session mode</label>
-            <select id="session-mode" value="@_mode" @onchange="ChangeMode">
+            <select id="session-mode" value="@_mode" @onchange="ChangeMode" disabled="@Locked">
                 <option value="Classic">Default Mode</option>
                 <option value="TmFinalist">TM Finalist Mode</option>
             </select>
@@ -28,74 +28,102 @@
             <label class="mode-number-row">
                 <span>Finalist points</span>
                 <input type="text" inputmode="numeric" autocomplete="off" maxlength="6"
-                       value="@_options.FinalistPoints" @onchange="ChangeFinalistPoints" />
+                       value="@_options.FinalistPoints" @onchange="ChangeFinalistPoints" disabled="@Locked" />
             </label>
             <label class="mode-number-row">
                 <span>Rounds per track</span>
                 <input type="text" inputmode="numeric" autocomplete="off" maxlength="3"
-                       value="@_options.RoundsPerTrack" @onchange="ChangeRounds" />
+                       value="@_options.RoundsPerTrack" @onchange="ChangeRounds" disabled="@Locked" />
             </label>
             <label class="mode-checkbox-row">
-                <input type="checkbox" checked="@_options.WarmupRound" @onchange="ChangeWarmup" />
+                <input type="checkbox" checked="@_options.WarmupRound" @onchange="ChangeWarmup" disabled="@Locked" />
                 <span>Warmup round</span>
             </label>
             <h3 class="mode-bonus-heading">Bonus Points per Track</h3>
             <div class="mode-bonus-row">
                 <label class="mode-checkbox-row">
-                    <input type="checkbox" checked="@_options.BestLapBonusEnabled" @onchange="ChangeBestLapEnabled" />
+                    <input type="checkbox" checked="@_options.BestLapBonusEnabled" @onchange="ChangeBestLapEnabled" disabled="@Locked" />
                     <span>Best lap</span>
                 </label>
                 <input type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="@_options.BestLapBonusPoints"
-                       aria-label="Best lap bonus points" @onchange="ChangeBestLapPoints" />
+                       aria-label="Best lap bonus points" @onchange="ChangeBestLapPoints" disabled="@Locked" />
             </div>
             <div class="mode-bonus-row">
                 <label class="mode-checkbox-row">
-                    <input type="checkbox" checked="@_options.PodiumBonusEnabled" @onchange="ChangePodiumEnabled" />
+                    <input type="checkbox" checked="@_options.PodiumBonusEnabled" @onchange="ChangePodiumEnabled" disabled="@Locked" />
                     <span>Podium in all rounds</span>
                 </label>
                 <input type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="@_options.PodiumBonusPoints"
-                       aria-label="Podium bonus points" @onchange="ChangePodiumPoints" />
+                       aria-label="Podium bonus points" @onchange="ChangePodiumPoints" disabled="@Locked" />
             </div>
           </div>
         }
         <div class="apply-row">
-            <button type="button" class="apply-button" @onclick="Apply">Apply</button>
+            <button type="button" class="apply-button" @onclick="Apply" disabled="@Locked">Apply</button>
         </div>
     </div>
 </aside>
 
 @code {
     [Parameter] public EventCallback<SessionModeSelection> Changed { get; set; }
+    [Parameter] public SessionModeSelection Value { get; set; } = new(SessionMode.Classic, new());
+    [Parameter] public bool Locked { get; set; }
+    [Parameter] public int ExternalRevision { get; set; }
     private SessionMode _mode = SessionMode.Classic;
     private TmFinalistOptions _options = new();
     private bool _expanded = true;
+    private SessionModeSelection? _lastExternalValue;
+    private int _lastExternalRevision = -1;
+
+    protected override void OnParametersSet()
+    {
+        if (_lastExternalValue == Value && _lastExternalRevision == ExternalRevision) return;
+        _mode = Value.Mode;
+        _options = Value.Options;
+        _lastExternalValue = Value;
+        _lastExternalRevision = ExternalRevision;
+    }
 
     private void ChangeMode(ChangeEventArgs args) =>
-        _mode = args.Value?.ToString() == "TmFinalist" ? SessionMode.TmFinalist : SessionMode.Classic;
+        _mode = Locked ? _mode : args.Value?.ToString() == "TmFinalist" ? SessionMode.TmFinalist : SessionMode.Classic;
 
-    private void ChangeFinalistPoints(ChangeEventArgs args) =>
-        _options = _options with { FinalistPoints = Number(args, _options.FinalistPoints, 1, 100000) };
+    private void ChangeFinalistPoints(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { FinalistPoints = Number(args, _options.FinalistPoints, 1, 100000) };
+    }
 
-    private void ChangeRounds(ChangeEventArgs args) =>
-        _options = _options with { RoundsPerTrack = Number(args, _options.RoundsPerTrack, 1, 100) };
+    private void ChangeRounds(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { RoundsPerTrack = Number(args, _options.RoundsPerTrack, 1, 100) };
+    }
 
-    private void ChangeWarmup(ChangeEventArgs args) =>
-        _options = _options with { WarmupRound = args.Value is true };
+    private void ChangeWarmup(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { WarmupRound = args.Value is true };
+    }
 
-    private void ChangeBestLapEnabled(ChangeEventArgs args) =>
-        _options = _options with { BestLapBonusEnabled = args.Value is true };
+    private void ChangeBestLapEnabled(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { BestLapBonusEnabled = args.Value is true };
+    }
 
-    private void ChangeBestLapPoints(ChangeEventArgs args) =>
-        _options = _options with { BestLapBonusPoints = Number(args, _options.BestLapBonusPoints, 0, 100000) };
+    private void ChangeBestLapPoints(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { BestLapBonusPoints = Number(args, _options.BestLapBonusPoints, 0, 100000) };
+    }
 
-    private void ChangePodiumEnabled(ChangeEventArgs args) =>
-        _options = _options with { PodiumBonusEnabled = args.Value is true };
+    private void ChangePodiumEnabled(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { PodiumBonusEnabled = args.Value is true };
+    }
 
-    private void ChangePodiumPoints(ChangeEventArgs args) =>
-        _options = _options with { PodiumBonusPoints = Number(args, _options.PodiumBonusPoints, 0, 100000) };
+    private void ChangePodiumPoints(ChangeEventArgs args)
+    {
+        if (!Locked) _options = _options with { PodiumBonusPoints = Number(args, _options.PodiumBonusPoints, 0, 100000) };
+    }
 
     private static int Number(ChangeEventArgs args, int previous, int min, int max) =>
         int.TryParse(args.Value?.ToString(), out var value) ? Math.Clamp(value, min, max) : previous;
 
-    private Task Apply() => Changed.InvokeAsync(new SessionModeSelection(_mode, _options));
+    private Task Apply() => Locked ? Task.CompletedTask : Changed.InvokeAsync(new SessionModeSelection(_mode, _options));
 }

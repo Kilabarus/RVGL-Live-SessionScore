@@ -11,7 +11,7 @@
         </h2>
         @if (!_expanded)
         {
-            <span class="scoring-selected">@(_mode == SessionMode.Classic ? "Default Mode" : "TM Finalist Mode")</span>
+            <span class="scoring-selected">@ModeName(_mode)</span>
         }
     </div>
     <div id="mode-content" class="mode-content" hidden="@(!_expanded)">
@@ -20,6 +20,7 @@
             <select id="session-mode" value="@_mode" @onchange="ChangeMode" disabled="@Locked">
                 <option value="Classic">Default Mode</option>
                 <option value="TmFinalist">TM Finalist Mode</option>
+                <option value="RvQuickDrawTournament2026">RV Quick Draw Tournament 2026</option>
             </select>
         </div>
         @if (_mode == SessionMode.TmFinalist)
@@ -84,8 +85,17 @@
         _lastExternalRevision = ExternalRevision;
     }
 
-    private void ChangeMode(ChangeEventArgs args) =>
-        _mode = Locked ? _mode : args.Value?.ToString() == "TmFinalist" ? SessionMode.TmFinalist : SessionMode.Classic;
+    private void ChangeMode(ChangeEventArgs args)
+    {
+        if (!Locked && Enum.TryParse<SessionMode>(args.Value?.ToString(), out var mode)) _mode = mode;
+    }
+
+    private static string ModeName(SessionMode mode) => mode switch
+    {
+        SessionMode.TmFinalist => "TM Finalist Mode",
+        SessionMode.RvQuickDrawTournament2026 => "Quick Draw 2026",
+        _ => "Default Mode"
+    };
 
     private void ChangeFinalistPoints(ChangeEventArgs args)
     {

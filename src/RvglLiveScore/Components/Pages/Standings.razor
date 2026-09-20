@@ -14,7 +14,7 @@
     <span>Active lobbies</span>
 </a>
 
-<div class="standings-grid @(_mode == SessionMode.TmFinalist ? "tm-layout" : "")">
+<div class="standings-grid @LayoutClass">
     <div class="standings-heading">
         <div class="standings-title-row">
             <h1 class="standings-title">@LobbyName</h1>
@@ -45,7 +45,7 @@
             <p class="connection-message" role="status">@message</p>
         }
         <div class="table-scroll" role="region" aria-label="Standings table" tabindex="0">
-            <table class="standings-table @(_mode == SessionMode.TmFinalist ? "tm-table" : "")">
+            <table class="standings-table @TableClass">
                 @if (_mode == SessionMode.TmFinalist)
                 {
                 <colgroup>
@@ -106,6 +106,53 @@
                     }
                 </tbody>
                 }
+                else if (_mode == SessionMode.RvQuickDrawTournament2026)
+                {
+                <colgroup>
+                    <col class="quick-position-column" />
+                    <col class="quick-player-column" />
+                    <col class="quick-race-column" />
+                    <col class="quick-race-column" />
+                    <col class="quick-race-column" />
+                    <col class="quick-race-column" />
+                    <col class="quick-points-column" />
+                    <col class="quick-difference-column" />
+                    <col class="quick-difference-column" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th scope="col" class="position">Pos</th>
+                        <th scope="col" class="player">Player</th>
+                        <th scope="col">Heat Race #1</th>
+                        <th scope="col">Heat Race #2</th>
+                        <th scope="col">Heat Race #3</th>
+                        <th scope="col">Final Race</th>
+                        <th scope="col" class="points">Points</th>
+                        <th scope="col" title="Points behind the player above">Diff</th>
+                        <th scope="col" title="Points behind the leader">Diff Leader</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _quickDrawStandings)
+                    {
+                        <tr @key="row.Player">
+                            <td class="position">@row.Position</td>
+                            <th scope="row" class="player">@row.Player</th>
+                            @foreach (var points in row.RacePoints)
+                            {
+                                <td class="race-points">@RacePoints(points)</td>
+                            }
+                            <td class="points">@ScoringSystem.Format(row.Points)</td>
+                            <td class="difference">@Difference(row.Diff)</td>
+                            <td class="difference">@Difference(row.DiffLeader)</td>
+                        </tr>
+                    }
+                    @if (_quickDrawStandings.Count == 0)
+                    {
+                        <tr><td colspan="9" class="empty-standings">@EmptyMessage</td></tr>
+                    }
+                </tbody>
+                }
                 else
                 {
                 <colgroup>
@@ -159,9 +206,12 @@
             }
             <SessionModePanel @key="ModePanelKey" Changed="SetMode" Value="CurrentModeSelection"
                               Locked="@_settingsLocked" ExternalRevision="@_settingsRevision" />
-            <ScoringPanel @key="ScoringPanelKey" LobbyId="@LobbyId" Applied="SetScoring" Loaded="SetStoredScoring" Value="@_scoring"
-                          Locked="@_settingsLocked" LoadStoredSettings="@_loadStoredScoring"
-                          ExternalRevision="@_settingsRevision" StartCollapsed="@(_mode == SessionMode.TmFinalist)" />
+            @if (_mode != SessionMode.RvQuickDrawTournament2026)
+            {
+                <ScoringPanel @key="ScoringPanelKey" LobbyId="@LobbyId" Applied="SetScoring" Loaded="SetStoredScoring" Value="@_scoring"
+                              Locked="@_settingsLocked" LoadStoredSettings="@_loadStoredScoring"
+                              ExternalRevision="@_settingsRevision" StartCollapsed="@(_mode == SessionMode.TmFinalist)" />
+            }
         }
     </div>
 </div>
@@ -174,6 +224,7 @@
     private SessionMode _mode = SessionMode.Classic;
     private TmFinalistOptions _tmOptions = new();
     private IReadOnlyList<TmStanding> _tmStandings = [];
+    private IReadOnlyList<QuickDrawStanding> _quickDrawStandings = [];
     private CancellationTokenSource? _subscription;
     private Task? _watch;
     private Task? _metadataWatch;
@@ -194,6 +245,18 @@
         ?? Directory.Snapshot.Lobbies.FirstOrDefault(x => x.Id == LobbyId)?.Name ?? "Lobby";
     private string ModePanelKey => "mode:" + LobbyId;
     private string ScoringPanelKey => "scoring:" + LobbyId;
+    private string LayoutClass => _mode switch
+    {
+        SessionMode.TmFinalist => "tm-layout",
+        SessionMode.RvQuickDrawTournament2026 => "quick-draw-layout",
+        _ => ""
+    };
+    private string TableClass => _mode switch
+    {
+        SessionMode.TmFinalist => "tm-table",
+        SessionMode.RvQuickDrawTournament2026 => "quick-draw-table",
+        _ => ""
+    };
     private SessionModeSelection CurrentModeSelection => new(_mode, _tmOptions);
     private string? SettingsBanner => _settingsWarning is not null
         ? "Lobby settings could not be loaded: " + _settingsWarning
@@ -221,6 +284,7 @@
         : value == 0 ? "0" : "−" + ScoringSystem.Format(value.Value);
     private static string FormatLastRound(IReadOnlyList<decimal> parts) => parts.Count == 0
         ? "0" : string.Join(" + ", parts.Select(ScoringSystem.Format));
+    private static string RacePoints(decimal? value) => value is null ? "—" : ScoringSystem.Format(value.Value);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -232,6 +296,7 @@
         _mode = SessionMode.Classic;
         _tmOptions = new();
         _tmStandings = [];
+        _quickDrawStandings = [];
         _settingsReady = false;
         _settingsLocked = false;
         _viewerCustomized = false;
@@ -304,16 +369,25 @@
         {
             _standings = [];
             _tmStandings = [];
+            _quickDrawStandings = [];
         }
         else if (_mode == SessionMode.Classic)
         {
             _standings = StandingsCalculator.Calculate(results, _scoring);
             _tmStandings = [];
+            _quickDrawStandings = [];
         }
-        else
+        else if (_mode == SessionMode.TmFinalist)
         {
             _tmStandings = TmFinalistCalculator.Calculate(results, _scoring, _tmOptions);
             _standings = [];
+            _quickDrawStandings = [];
+        }
+        else
+        {
+            _quickDrawStandings = QuickDrawTournamentCalculator.Calculate(results);
+            _standings = [];
+            _tmStandings = [];
         }
     }
 

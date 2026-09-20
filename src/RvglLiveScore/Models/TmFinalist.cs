@@ -1,6 +1,6 @@
 namespace RvglLiveScore.Models;
 
-public enum SessionMode { Classic, TmFinalist }
+public enum SessionMode { Classic, TmFinalist, RvQuickDrawTournament2026 }
 public sealed record SessionModeSelection(SessionMode Mode, TmFinalistOptions Options);
 
 public sealed record TmFinalistOptions(

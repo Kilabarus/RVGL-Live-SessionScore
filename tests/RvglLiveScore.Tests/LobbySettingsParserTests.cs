@@ -74,6 +74,18 @@ public class LobbySettingsParserTests
     }
 
     [Theory]
+    [InlineData("RV Quick Draw Tournament 2026")]
+    [InlineData("RVQuickDrawTournament2026")]
+    [InlineData("QuickDraw2026")]
+    [InlineData("quickdraw")]
+    public void SupportsQuickDrawAliases(string alias)
+    {
+        var result = Parse($"{{\"SessionMode\":\"{alias}\"}}");
+        var settings = Assert.IsType<LobbyDisplaySettings>(result.Settings);
+        Assert.Equal(SessionMode.RvQuickDrawTournament2026, settings.Session.Mode);
+    }
+
+    [Theory]
     [InlineData("{not json}")]
     [InlineData("{\"ScoringType\":\"Custom\"}")]
     [InlineData("{\"SessionMode\":\"TM\"}")]

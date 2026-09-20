@@ -53,9 +53,13 @@ public static class LobbySettingsParser
                     "TMModeSettings is required when SessionMode is TM.");
                 session = new(SessionMode.TmFinalist, ParseTmSettings(tm));
             }
+            else if (IsQuickDrawMode(sessionMode))
+            {
+                session = new(SessionMode.RvQuickDrawTournament2026, new());
+            }
             else
             {
-                throw new FormatException("SessionMode must be Default, TM, TMFinalist, Finalist, or TMFinalistMode.");
+                throw new FormatException("SessionMode must be Default, TM Finalist, or RV Quick Draw Tournament 2026.");
             }
 
             return new(true, new LobbyDisplaySettings(locked, scoring, session), null);
@@ -106,6 +110,12 @@ public static class LobbySettingsParser
         || value.Equals("TMFinalist", StringComparison.OrdinalIgnoreCase)
         || value.Equals("Finalist", StringComparison.OrdinalIgnoreCase)
         || value.Equals("TMFinalistMode", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsQuickDrawMode(string value) =>
+        value.Equals("RV Quick Draw Tournament 2026", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("RVQuickDrawTournament2026", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("QuickDraw2026", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("QuickDraw", StringComparison.OrdinalIgnoreCase);
 
     private static JsonElement Required(JsonElement item, string name, string message)
     {

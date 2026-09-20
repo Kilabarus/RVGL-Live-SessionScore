@@ -9,8 +9,11 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 280px; }
-.page { width: min(960px, calc(100% - 64px)); margin: 112px auto 64px; }
+body { display: flex; flex-direction: column; min-height: 100vh; margin: 0; min-width: 280px; }
+.page { flex: 1 0 auto; width: min(960px, calc(100% - 64px)); margin: 112px auto 64px; }
+.site-footer { flex: 0 0 auto; padding: 0 24px 24px; color: #7f8995; font-size: 12px; line-height: 1.6; text-align: center; }
+.site-footer a { color: #9aa5b1; overflow-wrap: anywhere; }
+.site-footer a:hover { color: #dce2e8; }
 h1 { margin: 0 0 36px; font-size: clamp(32px, 4vw, 44px); font-weight: 650; line-height: 1.2; letter-spacing: -0.025em; }
 h1:focus { outline: none; }
 .lobby-list { margin: 0; padding: 0; list-style: none; border: 1px solid #343b45; border-radius: 12px; background: #1d2229; overflow: hidden; }
